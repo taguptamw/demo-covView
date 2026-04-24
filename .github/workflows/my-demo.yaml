@@ -1,92 +1,19 @@
-name: Build and Test
-on: [push, pull_request]
-permissions:
-  contents: read
-  checks: write
+name: MATLAB Tests with Coverage
+on: [push, pull_request]  # Trigger workflow on push or pull request events
 
 jobs:
-  bat:
-    name: Build and Test
-    runs-on: ubuntu-22.04
+  test:  # Define a job named 'test'
+    runs-on: ubuntu-latest  # Use GitHub-hosted Ubuntu runner
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 20
-      - name: Configure npm for public registry
-        run: |
-          rm -f .npmrc
-          npm config set registry https://registry.npmjs.org/
-      - name: Perform npm tasks
-        run: npm run ci
-      - uses: actions/upload-artifact@v4
-        with:
-          name: built-action
-          path: |
-            **/*
-            !node_modules/
-
-  integ:
-    needs: bat
-    runs-on: ${{ matrix.os }}
-    permissions:
-      contents: read
-      checks: write
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest, macos-14]
-    steps:
-      - uses: actions/download-artifact@v5
-        with:
-          name: built-action
-      - name: Perform 'setup-matlab'
+      - name: Check out repository  # Step 1: Get your code
+        uses: actions/checkout@v4
+      
+      - name: Set up MATLAB  # Step 2: Install MATLAB on the runner
         uses: matlab-actions/setup-matlab@v2
         with:
-          products: |
-            MATLAB_Test
-            Simulink
-            Simulink_Test
-            Simulink_Coverage
-      - name: Run MATLAB Tests
-        continue-on-error: true
-        uses: ./
+          products: MATLAB_Test  # Install MATLAB Test 
+      # To generate the coverage view, use the version @3.1.0 of run-tests
+      - name: Run tests with coverage  # Step 3: Run your tests and collect coverage
+        uses: matlab-actions/run-tests@v3.1.0 
         with:
-          source-folder: sample
-          startup-options: -logfile output.log
-          code-coverage-summary-view: true
-        # env:
-          # GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Upload coverage data
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-data-${{ matrix.os }}
-          path: |
-            matlabCoverageResults*.json
-          if-no-files-found: warn  
-  coverage-summary:
-    needs: integ
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      checks: write
-    steps:
-      - uses: actions/download-artifact@v5
-        with:
-          name: built-action
-      
-      # Download all coverage artifacts
-      - name: Download all coverage artifacts
-        uses: actions/download-artifact@v5
-        with:
-          pattern: coverage-data-*
-          path: coverage-artifacts
-      
-      # Process and aggregate coverage data
-      - name: Aggregate and display coverage
-        uses: ./
-        with:
-          # Add a new input to indicate this is aggregation mode
-          aggregate-coverage: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}    
+          code-coverage-metric-level: mcdc  # Generate coverage summary with mcdc metrics
